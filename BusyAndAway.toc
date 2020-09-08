@@ -2,7 +2,7 @@
 ## Title: Busy and Away
 ## Notes: Restores your DND message when returning from AFK.
 ## Author: Niketa
-## Version: v4.1
+## Version: v4.2
 ## SavedVariables: BusyAndAwayDB
 
 Core.lua
