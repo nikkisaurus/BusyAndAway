@@ -60,9 +60,9 @@ function addon:LoadOptions()
         -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
         local anchor2
-        for k, v in addon:pairs(elements) do
+        for heading, setting in addon:pairs(elements) do
             local header = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            header:SetText(k)
+            header:SetText(heading)
 
             if anchor2 then
                 header:SetPoint("LEFT", anchor2, "LEFT", 0, 0)
@@ -78,11 +78,11 @@ function addon:LoadOptions()
             label:SetWidth(InterfaceOptionsFramePanelContainer:GetWidth() - 40)
             label:CanWordWrap(true)
             label:SetJustifyH("LEFT")
-            label:SetText(v[2])
+            label:SetText(setting[2])
 
             -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
-            local slider = CreateFrame("Slider", string.format("%s%sSlider", addonName, v[1]), frame, "OptionsSliderTemplate")
+            local slider = CreateFrame("Slider", string.format("%s%sSlider", addonName, setting[1]), frame, "OptionsSliderTemplate")
             slider:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -20)
             slider:SetOrientation("HORIZONTAL")
             slider:SetSize(200, 20)
@@ -95,7 +95,7 @@ function addon:LoadOptions()
             slider:SetValueStep(1)
 
             slider:SetScript("OnShow", function(self)
-                self:SetValue(addon.db.settings[v[1]])
+                self:SetValue(addon.db.settings[setting[1]])
             end)
 
             -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -112,7 +112,7 @@ function addon:LoadOptions()
             editbox:SetAutoFocus(false)
 
             editbox:SetScript("OnShow", function(self)
-                self:SetText(addon.db.settings[v[1]])
+                self:SetText(addon.db.settings[setting[1]])
             end)
 
             editbox:SetScript("OnTextChanged", function(self)
@@ -128,7 +128,7 @@ function addon:LoadOptions()
             slider:SetScript("OnValueChanged", function(self, value)
                 editbox:SetText(value)
 
-                addon.db.settings[v[1]] = value
+                addon.db.settings[setting[1]] = value
             end)
 
             editbox:SetScript("OnEnterPressed", function(self)
