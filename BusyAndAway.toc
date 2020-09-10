@@ -1,4 +1,9 @@
+#@retail@
 ## Interface: 90001
+#@end-retail@
+#@non-retail@
+## Interface: 11304
+#@end-non-retail@
 ## Title: Busy and Away
 ## Notes: Restores your DND message when returning from AFK.
 ## Author: Niketa
