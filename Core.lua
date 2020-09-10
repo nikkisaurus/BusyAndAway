@@ -1,155 +1,252 @@
--- Busy and Away --
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-local addon, ns = ...
+local addonName, addon = ...
+local L = addon.L
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-local events = CreateFrame("Frame")
-events:SetScript("OnEvent", function(self, event, ...)
+local CHAT_AFK_GET = CHAT_AFK_GET
+local DEFAULT_AFK_MESSAGE = DEFAULT_AFK_MESSAGE
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+local frame = CreateFrame("Frame", addonName .. "Frame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
+frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("CHAT_MSG_BN_WHISPER")
+frame:RegisterEvent("CHAT_MSG_BN_WHISPER_INFORM")
+frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
+frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+frame:SetScript("OnEvent", function(self, event, ...)
 	return self[event] and self[event](self, event, ...)
 end)
 
-events:RegisterEvent("ADDON_LOADED")
-events:RegisterEvent("PLAYER_FLAGS_CHANGED")
-events:RegisterEvent("CHAT_MSG_BN_WHISPER")
+addon.frame = frame
 
-ns.events = events
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-events.db = setmetatable({}, {__index = function(t, k)
-    return _G["BusyAndAwayDB"][k]
-end})
+function frame:ADDON_LOADED(_, loadedAddon, ...)
+	if loadedAddon == addonName then
+		addon.db = setmetatable({}, {__index = function(_, k)
+			return _G[addonName .. "DB"][k]
+		end})
 
-local db = events.db
+		-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+		-- Set up database defaults
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-local SetPlayerDND = SlashCmdList["CHAT_DND"]
+		local defaults = {
+			version = 3,
+			settings = {
+				autoResponseDelay = 60, -- bnlimit; min time between auto-responses per person
+				awayRespondDND = true, -- awaymsg; sets away messages to DND messages
+				bnRespondAway = false, -- bnaway; auto-responds to BN whispers when away
+				bnRespondDND = false, -- bnbusy; auto-responds to BN whispers when busy
+				bnSetStatus = false, -- changes the BN status when flags change
+				conversationDelay = 300, -- delay for auto-responses per person after a manual response
+				persistentStatus = true, -- remember; saves DND status and message throughout sessions
+			},
+			status = {
+				isAway = false, -- keeps track of whether the player was flagged away (to compare to current status and determine if DND needs restored)
+				isBusy = false, -- keeps track of whether the player was flagged busy
+				msg = "", -- custom dnd message
+			},
+			holds = {},
+		}
 
-SLASH_BUSYANDAWAYA1, SLASH_BUSYANDAWAYA2, SLASH_BUSYANDAWAYB1 = "/busy", "/dnd", "/baa"
+		BusyAndAwayDB = BusyAndAwayDB or defaults
 
-function SlashCmdList.BUSYANDAWAYA(msg)
-	db.status.msg = msg or ""
-	SendChatMessage(db.status.msg, DEFAULT_DND_MESSAGE)
-end
+		-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+		-- Convert DB version 2 to version 3
 
-function SlashCmdList.BUSYANDAWAYB(msg)
-	InterfaceOptionsFrame_OpenToCategory(events.addon.panel)
-	InterfaceOptionsFrame_OpenToCategory(events.addon.panel)
-end
+		if addon.db.version == 2 then
+			defaults.settings.autoResponseDelay = addon.db.settings.bnlimit
+			defaults.settings.awayRespondDND = addon.db.settings.awaymsg == 1 and true or false
+			defaults.settings.bnRespondAway = addon.db.settings.bnaway == 1 and true or false
+			defaults.settings.bnRespondDND = addon.db.settings.bnbusy == 1 and true or false
+			defaults.settings.persistentStatus = addon.db.settings.remember == 1 and true or false
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-local version = 2
+			defaults.status.isAway = addon.db.status.away == 1 and true or false
+			defaults.status.isBusy = addon.db.status.busy == 1 and true or false
+			defaults.status.msg = addon.db.status.msg
 
-function events:ADDON_LOADED(event, addon, ...)
-	if addon == "BusyAndAway" then
-		if not BusyAndAwayDB or not BusyAndAwayDB.version then
-			BusyAndAwayDB = {
-				settings = {
-					awaymsg = 1,
-					bnaway = 0,
-					bnbusy = 0,
-					remember = 1,
-					bnlimit = 60
-				},
-				status = {
-					away = 0,
-					busy = 0,
-					hold = {},
-					msg = ""
-				},
-				version = version
-			}
-		elseif BusyAndAwayDB then
-			if db.settings.remember == 1 then
-				events:RegisterEvent("PLAYER_ENTERING_WORLD")
-			else
-				db.status.away = 0
-				db.status.busy = 0
-				db.status.msg = ""
-			end
+			BusyAndAwayDB = defaults
+		end
 
-			db.status.hold = {}
+		-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+		-- Setup options frame
+
+		frame.name = "Busy and Away"
+		frame:Hide()
+
+		InterfaceOptions_AddCategory(frame)
+
+		-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+		-- Resume any delays
+
+		for friend, seconds in pairs(addon.db.holds) do
+			addon:StartTimer(friend, seconds)
 		end
 	end
 end
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-function events:PLAYER_ENTERING_WORLD(event, ...)
-	if db.status.busy == 1 and not UnitIsDND("player") then
-		SendChatMessage(db.status.msg, DEFAULT_DND_MESSAGE)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Sets DND status when logging in
+
+function frame:PLAYER_ENTERING_WORLD(event, ...)
+	self:UnregisterEvent(event)
+	if not addon.db.settings.persistentStatus then return end
+
+	if addon.db.status.isBusy and not UnitIsDND("player") then
+		SendChatMessage(addon.db.status.msg, "DND")
 	end
 end
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-function events:PLAYER_FLAGS_CHANGED()
-	local dnd = UnitIsDND("player")
-	local afk = UnitIsAFK("player")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Update DB status and restore DND when no longer AFK
 
-	if dnd then
-		db.status.busy = 1
-	elseif db.status.busy == 1 and afk then -- Trigger to restore DND message when back.
-		if db.settings.awaymsg == 1 and db.status.msg ~= "" then -- Set AFK message to DND message.
-			if db.status.away == 0 then
-				SendChatMessage("", DEFAULT_AFK_MESSAGE)
-			end
-			db.status.away = 1
-			SendChatMessage(db.status.msg, DEFAULT_AFK_MESSAGE)
-		else
-			db.status.away = 1
+function frame:PLAYER_FLAGS_CHANGED(...)
+	local isBusy = UnitIsDND("player")
+	local isAway = UnitIsAFK("player")
+
+	-- If enabled, change BN status to match in game status
+	if addon.db.settings.bnSetStatus then
+		if isBusy then
+			BNSetDND(true)
+		elseif isBusy and addon.db.status.isAway then
+			print("THIS")
+		elseif isAway and addon.db.status.isBusy then
+			BNSetAFK(true)
+		elseif not isBusy and addon.db.status.isBusy then
+			BNSetDND(false)
+			BNSetAFK(false)
 		end
-	elseif not afk and not dnd then
-		if db.status.busy == 1 and db.status.away == 1 then -- Restore DND message.
-			db.status.away = 0
-			SendChatMessage(db.status.msg, DEFAULT_DND_MESSAGE)
-		elseif db.status.busy == 1 then -- Clear DND status.
-			db.status.busy = 0
-			db.status.msg = ""
+	end
+
+	-- If busy, set DB as busy
+	if isBusy then
+		addon.db.status.isBusy = true
+	-- If DB is set as busy and we're away, set DB as away and change the message (if awayRespondDND enabled)
+	elseif addon.db.status.isBusy and isAway then
+		if addon.db.settings.awayRespondDND and addon.db.status.msg ~= "" then
+			-- Must clear the AFK tag before setting the new message or the message will just clear AFK status
+			SendChatMessage("", "AFK")
+			SendChatMessage(addon.db.status.msg, "AFK")
+		end
+
+		addon.db.status.isAway = true
+	elseif not isBusy and not isAway then
+		-- If not busy or away but both are true in DB, set away as false and restore busy status
+		if addon.db.status.isBusy and addon.db.status.isAway then
+			addon.db.status.isAway = false
+			SendChatMessage(addon.db.status.msg, "DND")
+		-- If not busy or away but busy in DB, we need to clear busy status
+		elseif addon.db.status.isBusy then
+			addon.db.status.isBusy = false
+			addon.db.status.msg = ""
 		end
 	end
 end
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-function events:CreateTimer(friend)
-	if not db.status.hold[friend] then
-		db.status.hold[friend] = 1
-		C_Timer.After(db.settings.bnlimit, function()
-			db.status.hold[friend] = nil
-		end)
-	end
-end
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Auto respond to BN whispers
 
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-function events:CHAT_MSG_BN_WHISPER(...)
-	local friend = select(14, ...)
+function frame:CHAT_MSG_BN_WHISPER(...)
+	local friend = (select(14, ...))
+	local isBusy = UnitIsDND("player")
+	local isAway = UnitIsAFK("player")
 
-	if db.status.hold[friend] then
+	-- Return if there's a delay on this friend or start a new delay
+	if addon.db.holds[friend] then
 		return
-	elseif db.settings.bnaway == 0 and db.settings.bnbusy == 0 then
-		db.status.hold = {}
+	elseif addon.db.settings.autoResponseDelay > 0 then
+		addon:StartTimer(friend, addon.db.settings.autoResponseDelay)
+	end
+
+	-- If away and bnRespondAway (auto respond to BN whispers when away)
+	-- Auto respond first and then reset away status since the response clears it
+	if isAway and addon.db.settings.bnRespondAway then
+		-- If awayRespondDND (send DND message instead of AFK message) then
+		if addon.db.settings.awayRespondDND and addon.db.status.msg ~= "" then
+			BNSendWhisper(friend, string.format("%s %s", string.format(CHAT_AFK_GET, ""), addon.db.status.msg))
+			SendChatMessage(addon.db.status.msg, "AFK")
+		-- Else send the default away message
+		else
+			BNSendWhisper(friend, string.format("%s %s", string.format(CHAT_AFK_GET, ""), DEFAULT_AFK_MESSAGE))
+			SendChatMessage("", "AFK")
+		end
+	elseif isBusy and addon.db.settings.bnRespondDND then
+		BNSendWhisper(friend, string.format("%s %s", string.format(CHAT_DND_GET, ""), (addon.db.status.msg ~= "" and addon.db.status.msg or DEFAULT_DND_MESSAGE)))
+	end
+
+	-- If we don't do this, auto-responses trigger a conversation delay
+	addon.autoResponded = true
+end
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Create delay for outgoing whispers
+
+function frame:CHAT_MSG_BN_WHISPER_INFORM(...)
+	if addon.autoResponded then
+		addon.autoResponded = false
 		return
 	end
 
-	if db.settings.bnlimit > 0 then
-		events:CreateTimer(friend)
+	local friend = (select(14, ...))
+
+	if addon.db.settings.conversationDelay > 0 then
+		addon:StartTimer(friend, addon.db.settings.conversationDelay)
 	end
+end
 
-	local dnd = UnitIsDND("player")
-	local afk = UnitIsAFK("player")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
-	if afk and db.settings.bnaway == 1 then
-		if db.settings.awaymsg ~= 0 and db.status.msg ~= "" then
-			BNSendWhisper(friend, string.format(CHAT_AFK_GET, "") .. db.status.msg)
-			if db.status.away == 0 then
-				SendChatMessage("", DEFAULT_AFK_MESSAGE)
-			end
-			db.status.away = 1
-			SendChatMessage(db.status.msg, DEFAULT_AFK_MESSAGE)
-		else
-			BNSendWhisper(friend, string.format(CHAT_AFK_GET, "") .. DEFAULT_AFK_MESSAGE)
-			db.status.away = 1
-			SendChatMessage("", DEFAULT_AFK_MESSAGE)
+function addon:StartTimer(friend, seconds)
+	self.db.holds[friend] = seconds
+
+	local ticker = C_Timer.NewTicker(1, function(self)
+		addon.db.holds[friend] = addon.db.holds[friend] - 1
+		if not addon.db.holds[friend] or addon.db.holds[friend] == 0 then
+			addon.db.holds[friend] = nil
+			self:Cancel()
 		end
+	end)
+end
 
-	elseif dnd and db.settings.bnbusy == 1 then
-		BNSendWhisper(friend, string.format(CHAT_DND_GET, "") .. (db.status.msg ~= "" and db.status.msg or DEFAULT_DND_MESSAGE))
-	end
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+function addon:pairs(tbl, func)
+    local a = {}
+
+    for n in pairs(tbl) do
+        tinsert(a, n)
+    end
+
+    sort(a, func)
+
+    local i = 0
+    local iter = function ()
+        i = i + 1
+        if a[i] == nil then
+            return nil
+        else
+            return a[i], tbl[a[i]]
+        end
+    end
+
+    return iter
+end
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Hacks the /busy and /dnd commands
+
+SLASH_BUSYANDAWAY_DND1, SLASH_BUSYANDAWAY_DND2 = "/busy", "/dnd"
+
+function SlashCmdList.BUSYANDAWAY_DND(msg)
+	addon.db.status.msg = msg
+	SendChatMessage(addon.db.status.msg, "DND")
+end
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+-- Sets up addon's slash command
+
+SLASH_BUSYANDAWAY1 = "/baa"
+
+function SlashCmdList.BUSYANDAWAY(msg)
+	addon:LoadOptions()
 end

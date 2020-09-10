@@ -7,5 +7,6 @@
 ## X-Curse-Project-ID: 65129
 ## X-WoWI-ID: 22492
 
+Localization.lua
 Core.lua
 Options.lua
