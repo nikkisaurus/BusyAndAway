@@ -15,7 +15,7 @@ function addon:LoadOptions()
         -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
         local elements = {
-            General = {
+            [L["General"]] = {
                 [1] = {"persistentStatus", L["Remember your DND status and message when logging in"]},
                 [2] = {"awayRespondDND", L["Use your DND message as your AFK message"]},
             },
