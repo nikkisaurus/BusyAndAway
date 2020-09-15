@@ -72,9 +72,9 @@ function frame:ADDON_LOADED(_, loadedAddon, ...)
 		-- Setup options frame
 
 		frame.name = "Busy and Away"
-		frame:Hide()
-
+		addon:LoadOptions()
 		InterfaceOptions_AddCategory(frame)
+		frame:Hide()
 
 		-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 		-- Resume any delays
