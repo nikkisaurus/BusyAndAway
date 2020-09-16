@@ -200,7 +200,7 @@ function addon:StartTimer(friend, seconds)
 	self.db.holds[friend] = seconds
 
 	local ticker = C_Timer.NewTicker(1, function(self)
-		addon.db.holds[friend] = addon.db.holds[friend] - 1
+		addon.db.holds[friend] = (addon.db.holds[friend] or 1) - 1
 		if not addon.db.holds[friend] or addon.db.holds[friend] == 0 then
 			addon.db.holds[friend] = nil
 			self:Cancel()
