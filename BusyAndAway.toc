@@ -1,17 +1,13 @@
-#@retail@
-## Interface: 90001
-#@end-retail@
-#@non-retail@
-## Interface: 11304
-#@end-non-retail@
-## Title: Busy and Away
+## Interface: 90205
+## Title: Busy and Away - Automatic Responses
 ## Notes: Restores your DND message when returning from AFK.
 ## Author: Niketa
 ## Version: @project-version@
 ## SavedVariables: BusyAndAwayDB
+
 ## X-Curse-Project-ID: 65129
 ## X-WoWI-ID: 22492
 
-Localization.lua
-Core.lua
-Options.lua
+Libs\lib.xml
+Locales\en-us.lua
+BusyAndAway.lua
