@@ -1,7 +1,6 @@
 ## Interface: 90207
 ## Interface-Wrath: 30400
 ## Title: Busy and Away - Automatic Responses
-## Notes: Restores your DND message when returning from AFK.
 ## Author: Niketa
 ## Version: @project-version@
 ## SavedVariables: BusyAndAwayDB
