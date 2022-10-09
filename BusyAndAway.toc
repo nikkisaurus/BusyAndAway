@@ -8,6 +8,6 @@
 ## X-Curse-Project-ID: 65129
 ## X-WoWI-ID: 22492
 
-Libs\lib.xml
+lib.xml
 Locales\en-us.lua
 BusyAndAway.lua
