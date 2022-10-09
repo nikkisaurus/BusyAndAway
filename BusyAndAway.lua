@@ -164,7 +164,7 @@ function BusyAndAway:CHAT_MSG_WHISPER(event, ...)
 	local isBnetMsg = event == "CHAT_MSG_BN_WHISPER"
 	local friend = select(isBnetMsg and 13 or 2, ...)
 	local msg = (session.status and session.status ~= "") and session.status or private.defaultStatus
-	msg = format("[%s] %s", private.db.global.settings.autoResponseTag and L["Auto Response"] or L.addon, msg)
+	msg = format("[%s] %s", private.db.global.settings.autoResponseTag and L["Auto Response"] or L.addonName, msg)
 
 	if private.db.global.session.delays[friend] then
 		return
